@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus Timer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f0f11;
+    color: #e8e8e8;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  h1 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 2.5rem;
+  }
+
+  /* ── Screens ── */
+  .screen { display: none; flex-direction: column; align-items: center; gap: 1.5rem; }
+  .screen.active { display: flex; }
+
+  /* ── Mood screen ── */
+  .mood-label {
+    font-size: 1rem;
+    color: #aaa;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .mood-grid {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .mood-btn {
+    font-size: 2rem;
+    background: #1c1c1f;
+    border: 2px solid transparent;
+    border-radius: 14px;
+    width: 3.5rem;
+    height: 3.5rem;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.1s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mood-btn:hover { border-color: #555; transform: scale(1.08); }
+  .mood-btn.selected { border-color: #7c6bf0; background: #1e1b35; }
+
+  /* ── Timer screen ── */
+  .phase-label {
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #666;
+  }
+
+  .timer-ring {
+    position: relative;
+    width: 220px;
+    height: 220px;
+  }
+
+  .timer-ring svg {
+    transform: rotate(-90deg);
+  }
+
+  .ring-bg { fill: none; stroke: #1c1c1f; stroke-width: 8; }
+  .ring-progress {
+    fill: none;
+    stroke: #7c6bf0;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear, stroke 0.5s;
+  }
+
+  .timer-digits {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .controls {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .btn {
+    padding: 0.6rem 1.6rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+
+  .btn-primary { background: #7c6bf0; color: #fff; }
+  .btn-ghost { background: #1c1c1f; color: #aaa; }
+
+  .session-count {
+    font-size: 0.85rem;
+    color: #555;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Well done screen ── */
+  .big-emoji { font-size: 3.5rem; }
+  .well-done-msg { font-size: 1.4rem; font-weight: 300; color: #ccc; }
+  .well-done-sub { font-size: 0.9rem; color: #666; }
+  .countdown-bar-wrap {
+    width: 200px;
+    height: 4px;
+    background: #1c1c1f;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .countdown-bar {
+    height: 100%;
+    background: #7c6bf0;
+    border-radius: 2px;
+    width: 100%;
+    transition: width linear;
+  }
+
+  /* ── Summary screen ── */
+  .summary-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 280px;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+
+  .summary-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: #1c1c1f;
+    border-radius: 10px;
+    padding: 0.7rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .summary-row .emoji { font-size: 1.3rem; }
+  .summary-row .sesh-label { color: #aaa; flex: 1; }
+  .summary-row .sesh-time { color: #555; font-size: 0.8rem; }
+
+  .summary-stat {
+    font-size: 0.85rem;
+    color: #666;
+    text-align: center;
+  }
+
+  /* ── Break screen ── */
+  .break-msg { font-size: 1.1rem; color: #aaa; text-align: center; line-height: 1.7; }
+</style>
+</head>
+<body>
+
+<h1>Focus Timer</h1>
+
+<!-- MOOD CHECK-IN -->
+<div class="screen active" id="screen-mood">
+  <p class="mood-label">How are you feeling heading into this session?</p>
+  <div class="mood-grid">
+    <button class="mood-btn" data-mood="😴" title="Tired">😴</button>
+    <button class="mood-btn" data-mood="😐" title="Neutral">😐</button>
+    <button class="mood-btn" data-mood="🙂" title="Good">🙂</button>
+    <button class="mood-btn" data-mood="⚡" title="Energised">⚡</button>
+    <button class="mood-btn" data-mood="🔥" title="On fire">🔥</button>
+  </div>
+  <button class="btn btn-primary" id="start-btn" disabled>Start Focus Session</button>
+</div>
+
+<!-- FOCUS / BREAK TIMER -->
+<div class="screen" id="screen-timer">
+  <span class="phase-label" id="phase-label">Focus</span>
+  <div class="timer-ring">
+    <svg width="220" height="220" viewBox="0 0 220 220">
+      <circle class="ring-bg" cx="110" cy="110" r="96"/>
+      <circle class="ring-progress" id="ring" cx="110" cy="110" r="96"
+        stroke-dasharray="603.2" stroke-dashoffset="0"/>
+    </svg>
+    <div class="timer-digits" id="timer-digits">25:00</div>
+  </div>
+  <div class="controls">
+    <button class="btn btn-ghost" id="pause-btn">Pause</button>
+    <button class="btn btn-ghost" id="skip-btn">Skip</button>
+  </div>
+  <span class="session-count" id="session-count">Session 1</span>
+</div>
+
+<!-- WELL DONE (5s interstitial) -->
+<div class="screen" id="screen-well-done">
+  <div class="big-emoji" id="wd-emoji">🎉</div>
+  <div class="well-done-msg" id="wd-msg">Session complete!</div>
+  <div class="well-done-sub" id="wd-sub">Break starting in 5 seconds…</div>
+  <div class="countdown-bar-wrap">
+    <div class="countdown-bar" id="wd-bar"></div>
+  </div>
+  <button class="btn btn-primary" id="wd-now-btn">Start Break Now</button>
+</div>
+
+<!-- BREAK TIMER -->
+<div class="screen" id="screen-break">
+  <span class="phase-label">Break</span>
+  <div class="timer-ring">
+    <svg width="220" height="220" viewBox="0 0 220 220">
+      <circle class="ring-bg" cx="110" cy="110" r="96"/>
+      <circle class="ring-progress" id="ring-break" cx="110" cy="110" r="96"
+        stroke-dasharray="603.2" stroke-dashoffset="0" style="stroke:#3ba87a"/>
+    </svg>
+    <div class="timer-digits" id="break-digits">5:00</div>
+  </div>
+  <p class="break-msg">Step away. Stretch.<br>Grab some water. 🌿</p>
+  <button class="btn btn-ghost" id="skip-break-btn">Skip Break</button>
+</div>
+
+<!-- DAILY SUMMARY -->
+<div class="screen" id="screen-summary">
+  <p class="mood-label" style="font-size:1.1rem;color:#ccc;">Today's sessions</p>
+  <div class="summary-grid" id="summary-grid"></div>
+  <p class="summary-stat" id="summary-stat"></p>
+  <button class="btn btn-primary" id="new-session-btn">Start Another Session</button>
+  <button class="btn btn-ghost" id="clear-btn">Clear History</button>
+</div>
+
+<script>
+const FOCUS_SECS = 25 * 60;
+const BREAK_SECS = 5 * 60;
+const WELL_DONE_SECS = 5;
+const CIRC = 603.2;
+const TODAY = new Date().toDateString();
+
+// ── State ──
+let selectedMood = null;
+let secondsLeft = FOCUS_SECS;
+let totalSecs = FOCUS_SECS;
+let ticker = null;
+let paused = false;
+let sessionNum = 1;
+let sessions = loadSessions();
+
+// ── DOM refs ──
+const screens = {
+  mood:     document.getElementById('screen-mood'),
+  timer:    document.getElementById('screen-timer'),
+  wellDone: document.getElementById('screen-well-done'),
+  break:    document.getElementById('screen-break'),
+  summary:  document.getElementById('screen-summary'),
+};
+
+function show(name) {
+  Object.values(screens).forEach(s => s.classList.remove('active'));
+  screens[name].classList.add('active');
+}
+
+// ── Persistence ──
+function loadSessions() {
+  try {
+    const raw = localStorage.getItem('focus-sessions');
+    const all = raw ? JSON.parse(raw) : [];
+    return all.filter(s => s.date === TODAY);
+  } catch { return []; }
+}
+
+function saveSession(mood) {
+  try {
+    const raw = localStorage.getItem('focus-sessions');
+    const all = raw ? JSON.parse(raw) : [];
+    const entry = { date: TODAY, mood, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) };
+    all.push(entry);
+    localStorage.setItem('focus-sessions', JSON.stringify(all));
+    sessions = loadSessions();
+  } catch {}
+}
+
+// ── Mood selection ──
+document.querySelectorAll('.mood-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedMood = btn.dataset.mood;
+    document.getElementById('start-btn').disabled = false;
+  });
+});
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  startFocus();
+});
+
+// ── Focus timer ──
+function startFocus() {
+  secondsLeft = FOCUS_SECS;
+  totalSecs = FOCUS_SECS;
+  paused = false;
+  updateTimerDisplay('timer-digits', 'ring', secondsLeft, totalSecs);
+  document.getElementById('phase-label').textContent = 'Focus';
+  document.getElementById('session-count').textContent = `Session ${sessionNum}`;
+  document.getElementById('ring').style.stroke = '#7c6bf0';
+  show('timer');
+  clearInterval(ticker);
+  ticker = setInterval(focusTick, 1000);
+}
+
+function focusTick() {
+  if (paused) return;
+  secondsLeft--;
+  updateTimerDisplay('timer-digits', 'ring', secondsLeft, FOCUS_SECS);
+  if (secondsLeft <= 0) {
+    clearInterval(ticker);
+    saveSession(selectedMood);
+    showWellDone();
+  }
+}
+
+// ── Pause / Skip ──
+document.getElementById('pause-btn').addEventListener('click', () => {
+  paused = !paused;
+  document.getElementById('pause-btn').textContent = paused ? 'Resume' : 'Pause';
+});
+
+document.getElementById('skip-btn').addEventListener('click', () => {
+  clearInterval(ticker);
+  saveSession(selectedMood);
+  showWellDone();
+});
+
+// ── Well done interstitial ──
+function showWellDone() {
+  const msgs = ['Great work! 🎉', 'Session done! ✨', 'Nailed it! 💪', 'Keep it up! 🌟'];
+  document.getElementById('wd-msg').textContent = msgs[Math.floor(Math.random() * msgs.length)];
+  document.getElementById('wd-emoji').textContent = selectedMood || '🎉';
+  document.getElementById('wd-sub').textContent = `Break starting in ${WELL_DONE_SECS} seconds…`;
+  show('wellDone');
+
+  const bar = document.getElementById('wd-bar');
+  bar.style.transition = 'none';
+  bar.style.width = '100%';
+  // Force reflow then animate
+  bar.getBoundingClientRect();
+  bar.style.transition = `width ${WELL_DONE_SECS}s linear`;
+  bar.style.width = '0%';
+
+  let wdCountdown = WELL_DONE_SECS;
+  const wdTicker = setInterval(() => {
+    wdCountdown--;
+    document.getElementById('wd-sub').textContent = `Break starting in ${wdCountdown} second${wdCountdown !== 1 ? 's' : ''}…`;
+    if (wdCountdown <= 0) {
+      clearInterval(wdTicker);
+      startBreak();
+    }
+  }, 1000);
+
+  document.getElementById('wd-now-btn').onclick = () => {
+    clearInterval(wdTicker);
+    startBreak();
+  };
+}
+
+// ── Break timer ──
+function startBreak() {
+  secondsLeft = BREAK_SECS;
+  updateTimerDisplay('break-digits', 'ring-break', secondsLeft, BREAK_SECS);
+  show('break');
+  clearInterval(ticker);
+  ticker = setInterval(breakTick, 1000);
+}
+
+function breakTick() {
+  secondsLeft--;
+  updateTimerDisplay('break-digits', 'ring-break', secondsLeft, BREAK_SECS);
+  if (secondsLeft <= 0) {
+    clearInterval(ticker);
+    sessionNum++;
+    showSummary();
+  }
+}
+
+document.getElementById('skip-break-btn').addEventListener('click', () => {
+  clearInterval(ticker);
+  sessionNum++;
+  showSummary();
+});
+
+// ── Summary ──
+function showSummary() {
+  const grid = document.getElementById('summary-grid');
+  grid.innerHTML = '';
+  sessions.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'summary-row';
+    row.innerHTML = `
+      <span class="emoji">${s.mood}</span>
+      <span class="sesh-label">Session ${i + 1}</span>
+      <span class="sesh-time">${s.time}</span>
+    `;
+    grid.appendChild(row);
+  });
+
+  // Simple mood summary
+  const moodCounts = {};
+  sessions.forEach(s => { moodCounts[s.mood] = (moodCounts[s.mood] || 0) + 1; });
+  const top = Object.entries(moodCounts).sort((a,b) => b[1]-a[1])[0];
+  document.getElementById('summary-stat').textContent =
+    `${sessions.length} session${sessions.length !== 1 ? 's' : ''} today · most common mood: ${top ? top[0] : '—'}`;
+
+  show('summary');
+}
+
+document.getElementById('new-session-btn').addEventListener('click', () => {
+  selectedMood = null;
+  document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('start-btn').disabled = true;
+  show('mood');
+});
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  localStorage.removeItem('focus-sessions');
+  sessions = [];
+  sessionNum = 1;
+  selectedMood = null;
+  document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('start-btn').disabled = true;
+  show('mood');
+});
+
+// ── Helpers ──
+function updateTimerDisplay(digitsId, ringId, secs, total) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  document.getElementById(digitsId).textContent =
+    `${m}:${String(s).padStart(2, '0')}`;
+  const pct = secs / total;
+  document.getElementById(ringId).style.strokeDashoffset = CIRC * (1 - pct);
+}
+</script>
+</body>
+</html>
